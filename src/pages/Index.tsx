@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Calendar, Users, UserCheck, UserX, Zap, Upload, FileText, Download, MessageCircle, RefreshCw, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import AnalysisDisplay from "@/components/AnalysisDisplay";
 
 const Index = () => {
   const [attendanceData, setAttendanceData] = useState(null);
@@ -292,7 +293,7 @@ const Index = () => {
           </CardContent>
         </Card>
 
-        {/* Analysis Results - Beautiful Chat-like Display */}
+        {/* Analysis Results - Beautiful Display */}
         {analysisOutput && (
           <Card>
             <CardHeader>
@@ -308,20 +309,7 @@ const Index = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="bg-green-50 border border-green-200 p-6 rounded-lg">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                      <Check className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-green-800 whitespace-pre-wrap leading-relaxed">
-                        {analysisOutput}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <AnalysisDisplay content={analysisOutput} />
             </CardContent>
           </Card>
         )}
@@ -354,8 +342,8 @@ const Index = () => {
               </div>
               <div className="text-xs text-muted-foreground">
                 <p>• The app sends POST requests with JSON payload containing file data</p>
-                <p>• Real-time analysis results are displayed in beautiful chat format</p>
-                <p>• Response shows only the clean analysis output with checkmark</p>
+                <p>• Real-time analysis results are displayed in beautiful structured format</p>
+                <p>• Employee data is automatically parsed and categorized by attendance</p>
                 <p>• Open browser console (F12) to see detailed upload logs</p>
               </div>
             </div>
