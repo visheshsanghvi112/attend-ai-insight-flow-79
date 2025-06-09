@@ -1,148 +1,136 @@
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Clock, Users, TrendingUp, FileText, Zap } from "lucide-react";
+import { Calendar, Users, UserCheck, UserX, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import AttendanceOverview from "@/components/AttendanceOverview";
-import EmployeeList from "@/components/EmployeeList";
-import AnalyticsChart from "@/components/AnalyticsChart";
-import ReportUpload from "@/components/ReportUpload";
 
 const Index = () => {
   const [attendanceData, setAttendanceData] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [webhookStatus, setWebhookStatus] = useState("idle");
   const { toast } = useToast();
 
   const webhookUrl = "https://visheshsanghvi.app.n8n.cloud/webhook-test/efbd6621-7def-4bc0-b324-cc5fab654969";
 
-  // Simulate receiving data from webhook
-  useEffect(() => {
-    // In a real implementation, this would be a WebSocket or polling mechanism
-    // For demo purposes, we'll simulate some data
-    const mockData = {
-      totalEmployees: 150,
-      presentToday: 142,
-      absentToday: 8,
-      avgAttendance: 94.7,
-      lastUpdated: new Date().toISOString(),
-      employees: [
-        { id: 1, name: "John Doe", checkIn: "09:15", checkOut: "18:30", status: "Present", department: "Engineering" },
-        { id: 2, name: "Jane Smith", checkIn: "09:00", checkOut: "17:45", status: "Present", department: "Marketing" },
-        { id: 3, name: "Mike Johnson", checkIn: null, checkOut: null, status: "Absent", department: "Sales" },
-        { id: 4, name: "Sarah Wilson", checkIn: "08:45", checkOut: "18:00", status: "Present", department: "HR" },
-      ]
-    };
-    
-    setTimeout(() => {
-      setAttendanceData(mockData);
-      setIsConnected(true);
-      setWebhookStatus("connected");
-    }, 1500);
-  }, []);
-
   const testWebhookConnection = async () => {
-    setWebhookStatus("testing");
-    
     try {
-      const response = await fetch(webhookUrl, {
+      await fetch(webhookUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         mode: "no-cors",
         body: JSON.stringify({
           test: true,
           timestamp: new Date().toISOString(),
-          source: "attendance-analyzer",
-          message: "Testing webhook connection"
+          source: "attendance-analyzer"
         }),
       });
 
-      setWebhookStatus("connected");
+      setIsConnected(true);
       toast({
-        title: "Webhook Test Sent",
-        description: "Test payload sent to n8n workflow. Check your n8n execution history.",
+        title: "Test sent to n8n workflow",
+        description: "Check your n8n execution history.",
       });
     } catch (error) {
-      console.error("Webhook test failed:", error);
-      setWebhookStatus("error");
       toast({
-        title: "Connection Test Failed",
-        description: "Could not reach the n8n webhook. Please verify the URL.",
+        title: "Connection failed",
+        description: "Could not reach the n8n webhook.",
         variant: "destructive",
       });
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-background p-6">
+      <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center space-y-4">
           <div className="flex items-center justify-center space-x-2">
-            <Calendar className="h-8 w-8 text-blue-600" />
-            <h1 className="text-4xl font-bold text-gray-900">Attendance Analyzer</h1>
+            <Calendar className="h-8 w-8 text-primary" />
+            <h1 className="text-3xl font-bold">Attendance Analyzer</h1>
           </div>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Professional attendance management powered by AI analysis of fingerprint machine reports
+          <p className="text-muted-foreground">
+            AI-powered attendance processing from fingerprint machine reports
           </p>
           
-          {/* Connection Status */}
           <div className="flex items-center justify-center space-x-4">
             <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
-              <span className="text-sm font-medium">
-                {isConnected ? 'Connected to n8n Workflow' : 'Awaiting Connection'}
+              <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+              <span className="text-sm">
+                {isConnected ? 'Connected to n8n' : 'Not connected'}
               </span>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={testWebhookConnection}
-              disabled={webhookStatus === "testing"}
-            >
+            <Button variant="outline" size="sm" onClick={testWebhookConnection}>
               <Zap className="h-4 w-4 mr-2" />
-              {webhookStatus === "testing" ? "Testing..." : "Test Connection"}
+              Test Connection
             </Button>
           </div>
         </div>
 
-        {/* Main Dashboard */}
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:grid-cols-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="employees">Employees</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
-          </TabsList>
+        {/* Attendance Data Display */}
+        {attendanceData ? (
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center">
+                  <Users className="h-4 w-4 mr-2" />
+                  Total Employees
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{attendanceData.totalEmployees}</div>
+              </CardContent>
+            </Card>
 
-          <TabsContent value="overview" className="space-y-6">
-            <AttendanceOverview data={attendanceData} />
-          </TabsContent>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center">
+                  <UserCheck className="h-4 w-4 mr-2 text-green-600" />
+                  Present Today
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">{attendanceData.presentToday}</div>
+              </CardContent>
+            </Card>
 
-          <TabsContent value="employees" className="space-y-6">
-            <EmployeeList employees={attendanceData?.employees || []} />
-          </TabsContent>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center">
+                  <UserX className="h-4 w-4 mr-2 text-red-600" />
+                  Absent Today
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">{attendanceData.absentToday}</div>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="text-center py-12">
+              <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-medium mb-2">Waiting for attendance data</h3>
+              <p className="text-muted-foreground">
+                Upload your fingerprint machine report to the n8n workflow to see attendance data here.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-          <TabsContent value="analytics" className="space-y-6">
-            <AnalyticsChart />
-          </TabsContent>
-
-          <TabsContent value="reports" className="space-y-6">
-            <ReportUpload webhookUrl={webhookUrl} />
-          </TabsContent>
-        </Tabs>
-
-        {/* Footer */}
-        <div className="text-center text-sm text-gray-500 border-t pt-6">
-          <p>Powered by AI • Connected to n8n Workflow • Real-time Processing</p>
-          <p className="mt-1">Last updated: {attendanceData?.lastUpdated ? new Date(attendanceData.lastUpdated).toLocaleString() : 'Never'}</p>
-        </div>
+        {/* Webhook Info */}
+        <Card>
+          <CardHeader>
+            <CardTitle>n8n Webhook Endpoint</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Send your processed attendance data to:</p>
+              <code className="block p-3 bg-muted rounded text-sm break-all">
+                {webhookUrl}
+              </code>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
