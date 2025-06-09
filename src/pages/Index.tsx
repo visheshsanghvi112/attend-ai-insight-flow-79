@@ -17,10 +17,9 @@ const Index = () => {
 
   const testWebhookConnection = async () => {
     try {
-      await fetch(webhookUrl, {
+      const response = await fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        mode: "no-cors",
         body: JSON.stringify({
           test: true,
           timestamp: new Date().toISOString(),
@@ -28,12 +27,14 @@ const Index = () => {
         }),
       });
 
+      console.log("Test response status:", response.status);
       setIsConnected(true);
       toast({
         title: "Test sent to n8n workflow",
         description: "Check your n8n execution history.",
       });
     } catch (error) {
+      console.error("Connection test error:", error);
       toast({
         title: "Connection failed",
         description: "Could not reach the n8n webhook.",
@@ -44,9 +45,22 @@ const Index = () => {
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && (file.type === "application/pdf" || file.type === "application/msword" || file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document")) {
+    console.log("File selected:", file);
+    
+    if (file && (file.type === "application/pdf" || 
+                 file.type === "application/msword" || 
+                 file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+                 file.name.toLowerCase().endsWith('.pdf') ||
+                 file.name.toLowerCase().endsWith('.doc') ||
+                 file.name.toLowerCase().endsWith('.docx'))) {
       setSelectedFile(file);
+      console.log("File accepted:", {
+        name: file.name,
+        size: file.size,
+        type: file.type
+      });
     } else {
+      console.log("File rejected:", file);
       toast({
         title: "Invalid file type",
         description: "Please select a PDF or Word document.",
@@ -56,36 +70,70 @@ const Index = () => {
   };
 
   const uploadReport = async () => {
-    if (!selectedFile) return;
+    if (!selectedFile) {
+      toast({
+        title: "No file selected",
+        description: "Please select a file first.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsUploading(true);
+    console.log("Starting file upload...", {
+      fileName: selectedFile.name,
+      fileSize: selectedFile.size,
+      fileType: selectedFile.type,
+      webhookUrl: webhookUrl
+    });
     
     try {
       const formData = new FormData();
-      formData.append('file', selectedFile);
+      formData.append('file', selectedFile, selectedFile.name);
+      formData.append('fileName', selectedFile.name);
+      formData.append('fileSize', selectedFile.size.toString());
+      formData.append('fileType', selectedFile.type);
       formData.append('timestamp', new Date().toISOString());
       formData.append('source', 'attendance-analyzer');
 
-      await fetch(webhookUrl, {
+      console.log("FormData prepared, sending to webhook...");
+      
+      // Log FormData contents
+      for (let [key, value] of formData.entries()) {
+        console.log(`FormData ${key}:`, value);
+      }
+
+      const response = await fetch(webhookUrl, {
         method: "POST",
-        mode: "no-cors",
         body: formData,
       });
 
-      toast({
-        title: "Report uploaded successfully",
-        description: "Your attendance report is being processed. Results will appear below when ready.",
+      console.log("Upload response:", {
+        status: response.status,
+        statusText: response.statusText,
+        headers: [...response.headers.entries()]
       });
-      
-      setSelectedFile(null);
-      // Reset file input
-      const fileInput = document.getElementById('file-input') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
+
+      if (response.ok || response.status === 0) {
+        toast({
+          title: "Report uploaded successfully",
+          description: "Your attendance report is being processed. Check your n8n workflow execution.",
+        });
+        
+        setSelectedFile(null);
+        const fileInput = document.getElementById('file-input') as HTMLInputElement;
+        if (fileInput) fileInput.value = '';
+        
+        console.log("File upload completed successfully");
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
       
     } catch (error) {
+      console.error("Upload error:", error);
       toast({
         title: "Upload failed",
-        description: "Could not upload the report. Please try again.",
+        description: `Could not upload the report: ${error.message}`,
         variant: "destructive",
       });
     } finally {
@@ -146,15 +194,17 @@ const Index = () => {
                 ) : (
                   <>
                     <FileText className="h-4 w-4 mr-2" />
-                    Upload
+                    Upload & Analyze
                   </>
                 )}
               </Button>
             </div>
             {selectedFile && (
-              <p className="text-sm text-muted-foreground">
-                Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-              </p>
+              <div className="text-sm text-muted-foreground">
+                <p>Selected: {selectedFile.name}</p>
+                <p>Size: {(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                <p>Type: {selectedFile.type || 'Unknown'}</p>
+              </div>
             )}
             <p className="text-xs text-muted-foreground">
               Supported formats: PDF, DOC, DOCX
@@ -224,6 +274,9 @@ const Index = () => {
               <code className="block p-3 bg-muted rounded text-sm break-all">
                 {webhookUrl}
               </code>
+              <p className="text-xs text-muted-foreground">
+                Open browser console (F12) to see detailed upload logs
+              </p>
             </div>
           </CardContent>
         </Card>
