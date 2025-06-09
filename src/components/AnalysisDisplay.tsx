@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { User, Calendar, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { User, Calendar, CheckCircle, XCircle, AlertCircle, FileText } from "lucide-react";
 
 interface AnalysisDisplayProps {
   content: string;
@@ -15,41 +15,96 @@ interface EmployeeData {
 }
 
 const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ content }) => {
-  // Parse the content to extract structured data
+  // Enhanced parsing to handle multiple formats
   const parseEmployeeData = (text: string): EmployeeData[] => {
     const employees: EmployeeData[] = [];
     const lines = text.split('\n');
     
     lines.forEach(line => {
-      // Match pattern: **NAME (ID):** X days present
-      const match = line.match(/\*\*([^(]+)\(([^)]+)\):\*\*\s*(\d+)\s*days?\s*present?/i);
+      // Pattern 1: **NAME (ID):** X days present
+      let match = line.match(/\*\*([^(]+)\(([^)]+)\):\*\*\s*(\d+)\s*days?\s*present?/i);
       if (match) {
         employees.push({
           name: match[1].trim(),
           id: match[2].trim(),
           daysPresent: parseInt(match[3])
         });
+        return;
+      }
+      
+      // Pattern 2: **NAME (ID):** X (without "days present")
+      match = line.match(/\*\*([^(]+)\(([^)]+)\):\*\*\s*(\d+)/i);
+      if (match) {
+        employees.push({
+          name: match[1].trim(),
+          id: match[2].trim(),
+          daysPresent: parseInt(match[3])
+        });
+        return;
+      }
+      
+      // Pattern 3: * **NAME (ID):** X (with bullet point)
+      match = line.match(/\*\s*\*\*([^(]+)\(([^)]+)\):\*\*\s*(\d+)/i);
+      if (match) {
+        employees.push({
+          name: match[1].trim(),
+          id: match[2].trim(),
+          daysPresent: parseInt(match[3])
+        });
+        return;
       }
     });
     
     return employees;
   };
 
-  // Extract summary text (everything before the employee list)
+  // Enhanced summary extraction
   const extractSummary = (text: string): string => {
     const lines = text.split('\n');
     const summaryLines = [];
+    let foundEmployeeList = false;
     
     for (const line of lines) {
-      if (line.match(/\*\*.*\(.*\):\*\*/)) break;
-      if (line.trim()) summaryLines.push(line.trim());
+      // Stop when we hit the first employee entry
+      if (line.match(/\*\*.*\(.*\):\*\*/) || line.match(/\*\s*\*\*.*\(.*\):\*\*/)) {
+        foundEmployeeList = true;
+        break;
+      }
+      if (line.trim() && !line.startsWith('*') && !line.includes('**')) {
+        summaryLines.push(line.trim());
+      }
     }
     
-    return summaryLines.join(' ');
+    return summaryLines.join(' ').trim();
+  };
+
+  // Format content into structured sections
+  const formatContent = (text: string) => {
+    const sections = [];
+    const lines = text.split('\n');
+    let currentSection = [];
+    
+    for (const line of lines) {
+      if (line.trim() === '') {
+        if (currentSection.length > 0) {
+          sections.push(currentSection.join('\n'));
+          currentSection = [];
+        }
+      } else {
+        currentSection.push(line);
+      }
+    }
+    
+    if (currentSection.length > 0) {
+      sections.push(currentSection.join('\n'));
+    }
+    
+    return sections;
   };
 
   const employees = parseEmployeeData(content);
   const summary = extractSummary(content);
+  const contentSections = formatContent(content);
   
   // Categorize employees by attendance
   const perfectAttendance = employees.filter(emp => emp.daysPresent >= 25);
@@ -101,24 +156,82 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ content }) => {
     );
   };
 
+  const ContentSection = ({ content, index }: { content: string, index: number }) => {
+    // Check if this section contains employee data
+    const hasEmployeeData = content.match(/\*\*.*\(.*\):\*\*/);
+    
+    if (hasEmployeeData) {
+      // Parse and display employee data beautifully
+      const sectionEmployees = parseEmployeeData(content);
+      if (sectionEmployees.length > 0) {
+        return (
+          <Card key={index}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-blue-500" />
+                Employee Data
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3">
+                {sectionEmployees.map((employee, empIndex) => (
+                  <div key={empIndex} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">{employee.name}</p>
+                        <p className="text-sm text-muted-foreground">{employee.id}</p>
+                      </div>
+                    </div>
+                    <Badge variant={getAttendanceBadgeVariant(employee.daysPresent)} className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {employee.daysPresent} days
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      }
+    }
+    
+    // Display other content sections beautifully
+    return (
+      <Card key={index}>
+        <CardContent className="p-6">
+          <div className="prose prose-sm max-w-none">
+            <div className="whitespace-pre-wrap leading-relaxed text-muted-foreground">
+              {content}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <div className="space-y-6">
-      {/* Summary Section */}
-      {summary && (
+      {/* Summary Section - Always display if we have content */}
+      {(summary || content) && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-500" />
+              <FileText className="h-5 w-5 text-primary" />
               Analysis Summary
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground leading-relaxed">{summary}</p>
+            <div className="prose prose-sm max-w-none">
+              <p className="text-muted-foreground leading-relaxed">
+                {summary || "Analysis completed successfully. See detailed results below."}
+              </p>
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Employee Statistics */}
+      {/* Employee Statistics - Only show if we have employee data */}
       {employees.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
@@ -152,7 +265,7 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ content }) => {
         </div>
       )}
 
-      {/* Employee Details by Category */}
+      {/* Employee Details by Category - Only show if we have employee data */}
       {employees.length > 0 && (
         <div className="space-y-4">
           <AttendanceSection 
@@ -178,11 +291,30 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ content }) => {
         </div>
       )}
 
-      {/* Fallback for unstructured content */}
-      {employees.length === 0 && (
+      {/* Content Sections - Always display content beautifully */}
+      {contentSections.length > 0 && employees.length === 0 && (
+        <div className="space-y-4">
+          {contentSections.map((section, index) => (
+            <ContentSection key={index} content={section} index={index} />
+          ))}
+        </div>
+      )}
+
+      {/* Fallback - if nothing else works, display raw content beautifully */}
+      {contentSections.length === 0 && employees.length === 0 && content && (
         <Card>
-          <CardContent className="p-6">
-            <div className="whitespace-pre-wrap leading-relaxed">{content}</div>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Analysis Results
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="prose prose-sm max-w-none">
+              <div className="whitespace-pre-wrap leading-relaxed text-muted-foreground">
+                {content}
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
