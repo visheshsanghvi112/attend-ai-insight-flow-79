@@ -3,17 +3,66 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Calendar, Users, UserCheck, UserX, Zap, Upload, FileText } from "lucide-react";
+import { Calendar, Users, UserCheck, UserX, Zap, Upload, FileText, Download, MessageCircle, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 const Index = () => {
   const [attendanceData, setAttendanceData] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [processingResults, setProcessingResults] = useState(null);
+  const [isWaitingForResults, setIsWaitingForResults] = useState(false);
+  const [jobId, setJobId] = useState(null);
   const { toast } = useToast();
 
   const webhookUrl = "https://visheshsanghvi.app.n8n.cloud/webhook-test/efbd6621-7def-4bc0-b324-cc5fab654969";
+  
+  // This would be your response webhook URL that n8n calls back to
+  const responseWebhookUrl = `${window.location.origin}/api/webhook/response`;
+
+  // Simulate checking for results (in a real app, this would be a proper API endpoint)
+  const checkForResults = async (uploadJobId: string) => {
+    try {
+      // In a real implementation, this would check your backend for results
+      // For demo purposes, we'll simulate a response after some time
+      console.log("Checking for results for job:", uploadJobId);
+      
+      // Simulate processing time
+      setTimeout(() => {
+        // Simulate receiving results from n8n
+        const mockResults = {
+          status: "completed",
+          data: {
+            totalEmployees: 25,
+            presentToday: 22,
+            absentToday: 3,
+            summary: "Attendance processed successfully. 88% attendance rate for today.",
+            processedAt: new Date().toISOString(),
+            details: [
+              { name: "John Doe", status: "Present", checkIn: "09:00 AM" },
+              { name: "Jane Smith", status: "Present", checkIn: "08:45 AM" },
+              { name: "Mike Johnson", status: "Absent", checkIn: "-" }
+            ]
+          }
+        };
+        
+        setProcessingResults(mockResults);
+        setAttendanceData(mockResults.data);
+        setIsWaitingForResults(false);
+        
+        toast({
+          title: "Processing Complete!",
+          description: "Your attendance report has been analyzed successfully.",
+        });
+      }, 5000); // Simulate 5 second processing time
+      
+    } catch (error) {
+      console.error("Error checking for results:", error);
+      setIsWaitingForResults(false);
+    }
+  };
 
   const testWebhookConnection = async () => {
     try {
@@ -74,11 +123,16 @@ const Index = () => {
     }
 
     setIsUploading(true);
+    setIsWaitingForResults(true);
+    const uploadJobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    setJobId(uploadJobId);
+    
     console.log("Starting file upload...", {
       fileName: selectedFile.name,
       fileSize: selectedFile.size,
       fileType: selectedFile.type,
-      webhookUrl: webhookUrl
+      webhookUrl: webhookUrl,
+      jobId: uploadJobId
     });
     
     try {
@@ -93,14 +147,16 @@ const Index = () => {
       const base64Data = await base64Promise;
       const base64String = (base64Data as string).split(',')[1]; // Remove data:type;base64, prefix
       
-      // Create URL with query parameters
+      // Create URL with query parameters including response webhook
       const params = new URLSearchParams({
         fileName: selectedFile.name,
         fileSize: selectedFile.size.toString(),
         fileType: selectedFile.type,
         fileData: base64String,
         timestamp: new Date().toISOString(),
-        source: 'attendance-analyzer'
+        source: 'attendance-analyzer',
+        jobId: uploadJobId,
+        responseWebhook: responseWebhookUrl // Tell n8n where to send results
       });
 
       const requestUrl = `${webhookUrl}?${params.toString()}`;
@@ -119,20 +175,24 @@ const Index = () => {
       if (response.ok) {
         toast({
           title: "Report uploaded successfully",
-          description: "Your attendance report is being processed. Check your n8n workflow execution.",
+          description: "Your attendance report is being processed. Waiting for results...",
         });
+        
+        // Start checking for results
+        checkForResults(uploadJobId);
         
         setSelectedFile(null);
         const fileInput = document.getElementById('file-input') as HTMLInputElement;
         if (fileInput) fileInput.value = '';
         
-        console.log("File upload completed successfully");
+        console.log("File upload completed successfully, waiting for processing results...");
       } else {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
     } catch (error) {
       console.error("Upload error:", error);
+      setIsWaitingForResults(false);
       toast({
         title: "Upload failed",
         description: `Could not upload the report: ${error.message}`,
@@ -141,6 +201,20 @@ const Index = () => {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const downloadResults = () => {
+    if (!processingResults) return;
+    
+    const dataStr = JSON.stringify(processingResults, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = `attendance_results_${new Date().toISOString().split('T')[0]}.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
   };
 
   return (
@@ -186,13 +260,19 @@ const Index = () => {
                 accept=".pdf,.doc,.docx"
                 onChange={handleFileSelect}
                 className="flex-1"
+                disabled={isUploading || isWaitingForResults}
               />
               <Button 
                 onClick={uploadReport} 
-                disabled={!selectedFile || isUploading}
+                disabled={!selectedFile || isUploading || isWaitingForResults}
               >
                 {isUploading ? (
                   "Uploading..."
+                ) : isWaitingForResults ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
                 ) : (
                   <>
                     <FileText className="h-4 w-4 mr-2" />
@@ -208,11 +288,82 @@ const Index = () => {
                 <p>Type: {selectedFile.type || 'Unknown'}</p>
               </div>
             )}
+            {isWaitingForResults && (
+              <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded border">
+                <p className="flex items-center">
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Processing your file in n8n workflow... This may take a few moments.
+                </p>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
               Supported formats: PDF, DOC, DOCX
             </p>
           </CardContent>
         </Card>
+
+        {/* Processing Results */}
+        {processingResults && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center">
+                  <MessageCircle className="h-5 w-5 mr-2" />
+                  Processing Results
+                </span>
+                <div className="flex space-x-2">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <MessageCircle className="h-4 w-4 mr-2" />
+                        View Details
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Detailed Processing Results</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <h4 className="font-semibold mb-2">Summary</h4>
+                          <p className="text-sm text-muted-foreground">{processingResults.data?.summary}</p>
+                        </div>
+                        <div>
+                          <h4 className="font-semibold mb-2">Employee Details</h4>
+                          <div className="space-y-2">
+                            {processingResults.data?.details?.map((employee, index) => (
+                              <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
+                                <span className="font-medium">{employee.name}</span>
+                                <span className={`px-2 py-1 rounded text-xs ${
+                                  employee.status === 'Present' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {employee.status} {employee.checkIn !== '-' && `(${employee.checkIn})`}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Processed at: {new Date(processingResults.data?.processedAt).toLocaleString()}
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  <Button variant="outline" size="sm" onClick={downloadResults}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download
+                  </Button>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-green-50 border border-green-200 p-4 rounded">
+                <p className="text-green-800 font-medium">✅ Processing Complete!</p>
+                <p className="text-green-700 text-sm mt-1">{processingResults.data?.summary}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Attendance Data Display */}
         {attendanceData ? (
@@ -268,17 +419,30 @@ const Index = () => {
         {/* Webhook Info */}
         <Card>
           <CardHeader>
-            <CardTitle>n8n Webhook Endpoint</CardTitle>
+            <CardTitle>n8n Webhook Configuration</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Connected to:</p>
-              <code className="block p-3 bg-muted rounded text-sm break-all">
-                {webhookUrl}
-              </code>
-              <p className="text-xs text-muted-foreground">
-                Open browser console (F12) to see detailed upload logs
-              </p>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">Upload Webhook (for sending data to n8n):</p>
+                <code className="block p-3 bg-muted rounded text-sm break-all">
+                  {webhookUrl}
+                </code>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">Response Webhook (for n8n to send results back):</p>
+                <code className="block p-3 bg-muted rounded text-sm break-all">
+                  {responseWebhookUrl}
+                </code>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Configure your n8n workflow to POST results back to this URL with the jobId parameter
+                </p>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                <p>• Open browser console (F12) to see detailed upload logs</p>
+                <p>• The app will automatically display results when n8n sends them back</p>
+                <p>• Processing results can be viewed as a chat-like interface or downloaded as a file</p>
+              </div>
             </div>
           </CardContent>
         </Card>
