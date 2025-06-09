@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,47 +22,12 @@ const Index = () => {
   // This would be your response webhook URL that n8n calls back to
   const responseWebhookUrl = `${window.location.origin}/api/webhook/response`;
 
-  // Simulate checking for results (in a real app, this would be a proper API endpoint)
-  const checkForResults = async (uploadJobId: string) => {
-    try {
-      // In a real implementation, this would check your backend for results
-      // For demo purposes, we'll simulate a response after some time
-      console.log("Checking for results for job:", uploadJobId);
-      
-      // Simulate processing time
-      setTimeout(() => {
-        // Simulate receiving results from n8n
-        const mockResults = {
-          status: "completed",
-          data: {
-            totalEmployees: 25,
-            presentToday: 22,
-            absentToday: 3,
-            summary: "Attendance processed successfully. 88% attendance rate for today.",
-            processedAt: new Date().toISOString(),
-            details: [
-              { name: "John Doe", status: "Present", checkIn: "09:00 AM" },
-              { name: "Jane Smith", status: "Present", checkIn: "08:45 AM" },
-              { name: "Mike Johnson", status: "Absent", checkIn: "-" }
-            ]
-          }
-        };
-        
-        setProcessingResults(mockResults);
-        setAttendanceData(mockResults.data);
-        setIsWaitingForResults(false);
-        
-        toast({
-          title: "Processing Complete!",
-          description: "Your attendance report has been analyzed successfully.",
-        });
-      }, 5000); // Simulate 5 second processing time
-      
-    } catch (error) {
-      console.error("Error checking for results:", error);
-      setIsWaitingForResults(false);
-    }
-  };
+  // Listen for webhook responses (in a real app, this would be handled by your backend)
+  useEffect(() => {
+    // In a real implementation, you'd set up a proper API endpoint to receive webhook responses
+    // For now, this is just a placeholder for the webhook response handling
+    console.log("App ready to receive webhook responses at:", responseWebhookUrl);
+  }, []);
 
   const testWebhookConnection = async () => {
     try {
@@ -180,11 +146,8 @@ const Index = () => {
       if (response.ok) {
         toast({
           title: "Report uploaded successfully",
-          description: "Your attendance report is being processed. Waiting for results...",
+          description: "Your attendance report is being processed. Waiting for results from n8n...",
         });
-        
-        // Start checking for results
-        checkForResults(uploadJobId);
         
         setSelectedFile(null);
         const fileInput = document.getElementById('file-input') as HTMLInputElement;
@@ -297,8 +260,9 @@ const Index = () => {
               <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded border">
                 <p className="flex items-center">
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Processing your file in n8n workflow... This may take a few moments.
+                  Processing your file in n8n workflow... Waiting for webhook response.
                 </p>
+                <p className="text-xs mt-1">Job ID: {jobId}</p>
               </div>
             )}
             <p className="text-xs text-muted-foreground">
@@ -307,70 +271,35 @@ const Index = () => {
           </CardContent>
         </Card>
 
-        {/* Processing Results */}
+        {/* Processing Results - Only shows real webhook responses */}
         {processingResults && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span className="flex items-center">
                   <MessageCircle className="h-5 w-5 mr-2" />
-                  Processing Results
+                  Webhook Response
                 </span>
-                <div className="flex space-x-2">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <MessageCircle className="h-4 w-4 mr-2" />
-                        View Details
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle>Detailed Processing Results</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <h4 className="font-semibold mb-2">Summary</h4>
-                          <p className="text-sm text-muted-foreground">{processingResults.data?.summary}</p>
-                        </div>
-                        <div>
-                          <h4 className="font-semibold mb-2">Employee Details</h4>
-                          <div className="space-y-2">
-                            {processingResults.data?.details?.map((employee, index) => (
-                              <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
-                                <span className="font-medium">{employee.name}</span>
-                                <span className={`px-2 py-1 rounded text-xs ${
-                                  employee.status === 'Present' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {employee.status} {employee.checkIn !== '-' && `(${employee.checkIn})`}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Processed at: {new Date(processingResults.data?.processedAt).toLocaleString()}
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                  <Button variant="outline" size="sm" onClick={downloadResults}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Download
-                  </Button>
-                </div>
+                <Button variant="outline" size="sm" onClick={downloadResults}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="bg-green-50 border border-green-200 p-4 rounded">
-                <p className="text-green-800 font-medium">✅ Processing Complete!</p>
-                <p className="text-green-700 text-sm mt-1">{processingResults.data?.summary}</p>
+                <p className="text-green-800 font-medium">✅ Response received from n8n webhook</p>
+                <div className="mt-2 text-sm text-green-700">
+                  <pre className="whitespace-pre-wrap">
+                    {JSON.stringify(processingResults, null, 2)}
+                  </pre>
+                </div>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Attendance Data Display */}
+        {/* Attendance Data Display - Only shows if real data is received */}
         {attendanceData ? (
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
@@ -413,9 +342,9 @@ const Index = () => {
           <Card>
             <CardContent className="text-center py-12">
               <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">Waiting for attendance data</h3>
+              <h3 className="text-lg font-medium mb-2">Waiting for webhook response</h3>
               <p className="text-muted-foreground">
-                Upload your fingerprint machine report above to see attendance data here.
+                Upload your attendance report above. Results will appear here when your n8n workflow sends the response back.
               </p>
             </CardContent>
           </Card>
@@ -444,10 +373,10 @@ const Index = () => {
                 </p>
               </div>
               <div className="text-xs text-muted-foreground">
-                <p>• The app now sends POST requests with JSON payload containing file data</p>
+                <p>• The app sends POST requests with JSON payload containing file data</p>
+                <p>• No fake results - only real webhook responses are displayed</p>
+                <p>• Configure your n8n workflow to send processed results back to the response webhook</p>
                 <p>• Open browser console (F12) to see detailed upload logs</p>
-                <p>• The app will automatically display results when n8n sends them back</p>
-                <p>• Processing results can be viewed as a chat-like interface or downloaded as a file</p>
               </div>
             </div>
           </CardContent>
