@@ -17,14 +17,8 @@ const Index = () => {
 
   const testWebhookConnection = async () => {
     try {
-      const response = await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          test: true,
-          timestamp: new Date().toISOString(),
-          source: "attendance-analyzer"
-        }),
+      const response = await fetch(`${webhookUrl}?test=true&timestamp=${new Date().toISOString()}&source=attendance-analyzer`, {
+        method: "GET",
       });
 
       console.log("Test response status:", response.status);
@@ -88,24 +82,32 @@ const Index = () => {
     });
     
     try {
-      const formData = new FormData();
-      formData.append('file', selectedFile, selectedFile.name);
-      formData.append('fileName', selectedFile.name);
-      formData.append('fileSize', selectedFile.size.toString());
-      formData.append('fileType', selectedFile.type);
-      formData.append('timestamp', new Date().toISOString());
-      formData.append('source', 'attendance-analyzer');
+      // Convert file to base64 for GET request
+      const fileReader = new FileReader();
+      const base64Promise = new Promise((resolve, reject) => {
+        fileReader.onload = () => resolve(fileReader.result);
+        fileReader.onerror = reject;
+        fileReader.readAsDataURL(selectedFile);
+      });
 
-      console.log("FormData prepared, sending to webhook...");
+      const base64Data = await base64Promise;
+      const base64String = (base64Data as string).split(',')[1]; // Remove data:type;base64, prefix
       
-      // Log FormData contents
-      for (let [key, value] of formData.entries()) {
-        console.log(`FormData ${key}:`, value);
-      }
+      // Create URL with query parameters
+      const params = new URLSearchParams({
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size.toString(),
+        fileType: selectedFile.type,
+        fileData: base64String,
+        timestamp: new Date().toISOString(),
+        source: 'attendance-analyzer'
+      });
 
-      const response = await fetch(webhookUrl, {
-        method: "POST",
-        body: formData,
+      const requestUrl = `${webhookUrl}?${params.toString()}`;
+      console.log("Sending GET request to webhook...");
+
+      const response = await fetch(requestUrl, {
+        method: "GET",
       });
 
       console.log("Upload response:", {
@@ -114,7 +116,7 @@ const Index = () => {
         headers: [...response.headers.entries()]
       });
 
-      if (response.ok || response.status === 0) {
+      if (response.ok) {
         toast({
           title: "Report uploaded successfully",
           description: "Your attendance report is being processed. Check your n8n workflow execution.",
