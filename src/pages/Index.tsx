@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -127,7 +126,7 @@ const Index = () => {
     const uploadJobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     setJobId(uploadJobId);
     
-    console.log("Starting file upload...", {
+    console.log("Starting file upload with POST method...", {
       fileName: selectedFile.name,
       fileSize: selectedFile.size,
       fileType: selectedFile.type,
@@ -136,7 +135,7 @@ const Index = () => {
     });
     
     try {
-      // Convert file to base64 for GET request
+      // Convert file to base64 for POST request
       const fileReader = new FileReader();
       const base64Promise = new Promise((resolve, reject) => {
         fileReader.onload = () => resolve(fileReader.result);
@@ -147,23 +146,29 @@ const Index = () => {
       const base64Data = await base64Promise;
       const base64String = (base64Data as string).split(',')[1]; // Remove data:type;base64, prefix
       
-      // Create URL with query parameters including response webhook
-      const params = new URLSearchParams({
+      // Create payload for POST request
+      const payload = {
         fileName: selectedFile.name,
-        fileSize: selectedFile.size.toString(),
+        fileSize: selectedFile.size,
         fileType: selectedFile.type,
         fileData: base64String,
         timestamp: new Date().toISOString(),
         source: 'attendance-analyzer',
         jobId: uploadJobId,
         responseWebhook: responseWebhookUrl // Tell n8n where to send results
+      };
+
+      console.log("Sending POST request to webhook with payload...", {
+        ...payload,
+        fileData: `[BASE64_DATA_${base64String.length}_CHARS]` // Don't log the actual base64 data
       });
 
-      const requestUrl = `${webhookUrl}?${params.toString()}`;
-      console.log("Sending GET request to webhook...");
-
-      const response = await fetch(requestUrl, {
-        method: "GET",
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       });
 
       console.log("Upload response:", {
@@ -185,7 +190,7 @@ const Index = () => {
         const fileInput = document.getElementById('file-input') as HTMLInputElement;
         if (fileInput) fileInput.value = '';
         
-        console.log("File upload completed successfully, waiting for processing results...");
+        console.log("File upload completed successfully with POST method, waiting for processing results...");
       } else {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -424,7 +429,7 @@ const Index = () => {
           <CardContent>
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-muted-foreground mb-2">Upload Webhook (for sending data to n8n):</p>
+                <p className="text-sm text-muted-foreground mb-2">Upload Webhook (for sending data to n8n via POST):</p>
                 <code className="block p-3 bg-muted rounded text-sm break-all">
                   {webhookUrl}
                 </code>
@@ -439,6 +444,7 @@ const Index = () => {
                 </p>
               </div>
               <div className="text-xs text-muted-foreground">
+                <p>• The app now sends POST requests with JSON payload containing file data</p>
                 <p>• Open browser console (F12) to see detailed upload logs</p>
                 <p>• The app will automatically display results when n8n sends them back</p>
                 <p>• Processing results can be viewed as a chat-like interface or downloaded as a file</p>
