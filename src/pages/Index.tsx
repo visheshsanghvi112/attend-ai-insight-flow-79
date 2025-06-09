@@ -15,9 +15,11 @@ const Index = () => {
   const [processingResults, setProcessingResults] = useState(null);
   const [isWaitingForResults, setIsWaitingForResults] = useState(false);
   const [jobId, setJobId] = useState(null);
+  const [analysisOutput, setAnalysisOutput] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const webhookUrl = "https://visheshsanghvi.app.n8n.cloud/webhook-test/efbd6621-7def-4bc0-b324-cc5fab654969";
+  // Updated to production webhook URL
+  const webhookUrl = "https://visheshsanghvi.app.n8n.cloud/webhook/anayzed";
   
   // This would be your response webhook URL that n8n calls back to
   const responseWebhookUrl = `${window.location.origin}/api/webhook/response`;
@@ -89,6 +91,7 @@ const Index = () => {
 
     setIsUploading(true);
     setIsWaitingForResults(true);
+    setAnalysisOutput(null);
     const uploadJobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     setJobId(uploadJobId);
     
@@ -144,16 +147,37 @@ const Index = () => {
       });
 
       if (response.ok) {
-        toast({
-          title: "Report uploaded successfully",
-          description: "Your attendance report is being processed. Waiting for results from n8n...",
-        });
+        // Parse the response to get the analysis results
+        const responseData = await response.json();
+        console.log("Response data:", responseData);
+        
+        // Extract the analysis output from the response structure
+        if (responseData && Array.isArray(responseData) && responseData[0]?.response?.body?.[0]?.output) {
+          const output = responseData[0].response.body[0].output;
+          setAnalysisOutput(output);
+          setProcessingResults(responseData);
+          setIsWaitingForResults(false);
+          
+          toast({
+            title: "Analysis completed!",
+            description: "Your file has been analyzed successfully.",
+          });
+        } else {
+          // Handle case where response structure is different
+          setProcessingResults(responseData);
+          setIsWaitingForResults(false);
+          
+          toast({
+            title: "File processed",
+            description: "File uploaded and processed successfully.",
+          });
+        }
         
         setSelectedFile(null);
         const fileInput = document.getElementById('file-input') as HTMLInputElement;
         if (fileInput) fileInput.value = '';
         
-        console.log("File upload completed successfully with POST method, waiting for processing results...");
+        console.log("File upload and processing completed successfully");
       } else {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -177,7 +201,7 @@ const Index = () => {
     const dataStr = JSON.stringify(processingResults, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
     
-    const exportFileDefaultName = `attendance_results_${new Date().toISOString().split('T')[0]}.json`;
+    const exportFileDefaultName = `analysis_results_${new Date().toISOString().split('T')[0]}.json`;
     
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
@@ -192,10 +216,10 @@ const Index = () => {
         <div className="text-center space-y-4">
           <div className="flex items-center justify-center space-x-2">
             <Calendar className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Attendance Analyzer</h1>
+            <h1 className="text-3xl font-bold">Code Analysis Tool</h1>
           </div>
           <p className="text-muted-foreground">
-            AI-powered attendance processing from fingerprint machine reports
+            AI-powered code analysis from uploaded documents
           </p>
           
           <div className="flex items-center justify-center space-x-4">
@@ -217,7 +241,7 @@ const Index = () => {
           <CardHeader>
             <CardTitle className="flex items-center">
               <Upload className="h-5 w-5 mr-2" />
-              Upload Attendance Report
+              Upload Code Document
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -260,7 +284,7 @@ const Index = () => {
               <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded border">
                 <p className="flex items-center">
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Processing your file in n8n workflow... Waiting for webhook response.
+                  Processing your file in n8n workflow...
                 </p>
                 <p className="text-xs mt-1">Job ID: {jobId}</p>
               </div>
@@ -271,14 +295,48 @@ const Index = () => {
           </CardContent>
         </Card>
 
-        {/* Processing Results - Only shows real webhook responses */}
-        {processingResults && (
+        {/* Analysis Results - Chat-like Display */}
+        {analysisOutput && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span className="flex items-center">
                   <MessageCircle className="h-5 w-5 mr-2" />
-                  Webhook Response
+                  Analysis Results
+                </span>
+                <Button variant="outline" size="sm" onClick={downloadResults}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Raw Data
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                  <div className="flex items-start space-x-3">
+                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                      AI
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-blue-800 whitespace-pre-wrap">
+                        {analysisOutput}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Processing Results - Raw Data View */}
+        {processingResults && !analysisOutput && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center">
+                  <MessageCircle className="h-5 w-5 mr-2" />
+                  Processing Results
                 </span>
                 <Button variant="outline" size="sm" onClick={downloadResults}>
                   <Download className="h-4 w-4 mr-2" />
@@ -288,7 +346,7 @@ const Index = () => {
             </CardHeader>
             <CardContent>
               <div className="bg-green-50 border border-green-200 p-4 rounded">
-                <p className="text-green-800 font-medium">✅ Response received from n8n webhook</p>
+                <p className="text-green-800 font-medium">✅ Response received from n8n workflow</p>
                 <div className="mt-2 text-sm text-green-700">
                   <pre className="whitespace-pre-wrap">
                     {JSON.stringify(processingResults, null, 2)}
@@ -299,52 +357,14 @@ const Index = () => {
           </Card>
         )}
 
-        {/* Attendance Data Display - Only shows if real data is received */}
-        {attendanceData ? (
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center">
-                  <Users className="h-4 w-4 mr-2" />
-                  Total Employees
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{attendanceData.totalEmployees}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center">
-                  <UserCheck className="h-4 w-4 mr-2 text-green-600" />
-                  Present Today
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">{attendanceData.presentToday}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center">
-                  <UserX className="h-4 w-4 mr-2 text-red-600" />
-                  Absent Today
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600">{attendanceData.absentToday}</div>
-              </CardContent>
-            </Card>
-          </div>
-        ) : (
+        {/* Empty State */}
+        {!processingResults && !isWaitingForResults && (
           <Card>
             <CardContent className="text-center py-12">
               <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">Waiting for webhook response</h3>
+              <h3 className="text-lg font-medium mb-2">Ready for Analysis</h3>
               <p className="text-muted-foreground">
-                Upload your attendance report above. Results will appear here when your n8n workflow sends the response back.
+                Upload your code document above to get AI-powered analysis results.
               </p>
             </CardContent>
           </Card>
@@ -358,24 +378,15 @@ const Index = () => {
           <CardContent>
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-muted-foreground mb-2">Upload Webhook (for sending data to n8n via POST):</p>
+                <p className="text-sm text-muted-foreground mb-2">Analysis Webhook (Production URL):</p>
                 <code className="block p-3 bg-muted rounded text-sm break-all">
                   {webhookUrl}
                 </code>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Response Webhook (for n8n to send results back):</p>
-                <code className="block p-3 bg-muted rounded text-sm break-all">
-                  {responseWebhookUrl}
-                </code>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Configure your n8n workflow to POST results back to this URL with the jobId parameter
-                </p>
-              </div>
               <div className="text-xs text-muted-foreground">
                 <p>• The app sends POST requests with JSON payload containing file data</p>
-                <p>• No fake results - only real webhook responses are displayed</p>
-                <p>• Configure your n8n workflow to send processed results back to the response webhook</p>
+                <p>• Real-time analysis results are displayed in chat format</p>
+                <p>• Response is parsed and displayed in a user-friendly format</p>
                 <p>• Open browser console (F12) to see detailed upload logs</p>
               </div>
             </div>
