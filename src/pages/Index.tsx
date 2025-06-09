@@ -1,9 +1,8 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Calendar, Users, UserCheck, UserX, Zap, Upload, FileText, Download, MessageCircle, RefreshCw } from "lucide-react";
+import { Calendar, Users, UserCheck, UserX, Zap, Upload, FileText, Download, MessageCircle, RefreshCw, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
@@ -152,10 +151,9 @@ const Index = () => {
         console.log("Response data:", responseData);
         
         // Extract the analysis output from the response structure
-        if (responseData && Array.isArray(responseData) && responseData[0]?.response?.body?.[0]?.output) {
-          const output = responseData[0].response.body[0].output;
+        if (responseData && Array.isArray(responseData) && responseData[0]?.output) {
+          const output = responseData[0].output;
           setAnalysisOutput(output);
-          setProcessingResults(responseData);
           setIsWaitingForResults(false);
           
           toast({
@@ -163,12 +161,11 @@ const Index = () => {
             description: "Your file has been analyzed successfully.",
           });
         } else {
-          // Handle case where response structure is different
-          setProcessingResults(responseData);
+          // Handle case where response structure is different - no fake results
           setIsWaitingForResults(false);
           
           toast({
-            title: "File processed",
+            title: "Processing completed",
             description: "File uploaded and processed successfully.",
           });
         }
@@ -196,12 +193,12 @@ const Index = () => {
   };
 
   const downloadResults = () => {
-    if (!processingResults) return;
+    if (!analysisOutput) return;
     
-    const dataStr = JSON.stringify(processingResults, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const dataStr = analysisOutput;
+    const dataUri = 'data:text/plain;charset=utf-8,'+ encodeURIComponent(dataStr);
     
-    const exportFileDefaultName = `analysis_results_${new Date().toISOString().split('T')[0]}.json`;
+    const exportFileDefaultName = `analysis_results_${new Date().toISOString().split('T')[0]}.txt`;
     
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
@@ -295,48 +292,14 @@ const Index = () => {
           </CardContent>
         </Card>
 
-        {/* Analysis Results - Chat-like Display */}
+        {/* Analysis Results - Beautiful Chat-like Display */}
         {analysisOutput && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span className="flex items-center">
-                  <MessageCircle className="h-5 w-5 mr-2" />
-                  Analysis Results
-                </span>
-                <Button variant="outline" size="sm" onClick={downloadResults}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Raw Data
-                </Button>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                      AI
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-blue-800 whitespace-pre-wrap">
-                        {analysisOutput}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Processing Results - Raw Data View */}
-        {processingResults && !analysisOutput && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center">
-                  <MessageCircle className="h-5 w-5 mr-2" />
-                  Processing Results
+                  <Check className="h-5 w-5 mr-2 text-green-500" />
+                  Analysis Complete
                 </span>
                 <Button variant="outline" size="sm" onClick={downloadResults}>
                   <Download className="h-4 w-4 mr-2" />
@@ -345,12 +308,18 @@ const Index = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="bg-green-50 border border-green-200 p-4 rounded">
-                <p className="text-green-800 font-medium">✅ Response received from n8n workflow</p>
-                <div className="mt-2 text-sm text-green-700">
-                  <pre className="whitespace-pre-wrap">
-                    {JSON.stringify(processingResults, null, 2)}
-                  </pre>
+              <div className="space-y-4">
+                <div className="bg-green-50 border border-green-200 p-6 rounded-lg">
+                  <div className="flex items-start space-x-3">
+                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                      <Check className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-green-800 whitespace-pre-wrap leading-relaxed">
+                        {analysisOutput}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -358,7 +327,7 @@ const Index = () => {
         )}
 
         {/* Empty State */}
-        {!processingResults && !isWaitingForResults && (
+        {!analysisOutput && !isWaitingForResults && (
           <Card>
             <CardContent className="text-center py-12">
               <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
@@ -385,8 +354,8 @@ const Index = () => {
               </div>
               <div className="text-xs text-muted-foreground">
                 <p>• The app sends POST requests with JSON payload containing file data</p>
-                <p>• Real-time analysis results are displayed in chat format</p>
-                <p>• Response is parsed and displayed in a user-friendly format</p>
+                <p>• Real-time analysis results are displayed in beautiful chat format</p>
+                <p>• Response shows only the clean analysis output with checkmark</p>
                 <p>• Open browser console (F12) to see detailed upload logs</p>
               </div>
             </div>
