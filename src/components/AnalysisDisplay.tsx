@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -168,7 +167,7 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ content }) => {
           <Card key={index}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-blue-500" />
+                <User className="h-5 w-5 text-blue-500" />
                 Employee Data
               </CardTitle>
             </CardHeader>
