@@ -1,6 +1,8 @@
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { User, Calendar, CheckCircle, XCircle, AlertCircle, FileText } from "lucide-react";
 
 interface AnalysisDisplayProps {
@@ -9,52 +11,93 @@ interface AnalysisDisplayProps {
 
 interface EmployeeData {
   name: string;
-  id: string;
+  id?: string;
   daysPresent: number;
 }
 
 const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ content }) => {
-  // Enhanced parsing to handle multiple formats
+  // Enhanced parsing to handle multiple formats including tables
   const parseEmployeeData = (text: string): EmployeeData[] => {
     const employees: EmployeeData[] = [];
     const lines = text.split('\n');
     
     lines.forEach(line => {
       // Pattern 1: **NAME (ID):** X days present
-      let match = line.match(/\*\*([^(]+)\(([^)]+)\):\*\*\s*(\d+)\s*days?\s*present?/i);
+      let match = line.match(/\*\*([^(]+)\(([^)]+)\):\*\*\s*(\d+(?:\.\d+)?)\s*days?\s*present?/i);
       if (match) {
         employees.push({
           name: match[1].trim(),
           id: match[2].trim(),
-          daysPresent: parseInt(match[3])
+          daysPresent: parseFloat(match[3])
         });
         return;
       }
       
       // Pattern 2: **NAME (ID):** X (without "days present")
-      match = line.match(/\*\*([^(]+)\(([^)]+)\):\*\*\s*(\d+)/i);
+      match = line.match(/\*\*([^(]+)\(([^)]+)\):\*\*\s*(\d+(?:\.\d+)?)/i);
       if (match) {
         employees.push({
           name: match[1].trim(),
           id: match[2].trim(),
-          daysPresent: parseInt(match[3])
+          daysPresent: parseFloat(match[3])
         });
         return;
       }
       
       // Pattern 3: * **NAME (ID):** X (with bullet point)
-      match = line.match(/\*\s*\*\*([^(]+)\(([^)]+)\):\*\*\s*(\d+)/i);
+      match = line.match(/\*\s*\*\*([^(]+)\(([^)]+)\):\*\*\s*(\d+(?:\.\d+)?)/i);
       if (match) {
         employees.push({
           name: match[1].trim(),
           id: match[2].trim(),
-          daysPresent: parseInt(match[3])
+          daysPresent: parseFloat(match[3])
         });
+        return;
+      }
+
+      // Pattern 4: Table row format: | NAME | DAYS |
+      match = line.match(/\|\s*([^|]+?)\s*\|\s*(\d+(?:\.\d+)?)\s*\|/);
+      if (match && !match[1].toLowerCase().includes('employee') && !match[1].toLowerCase().includes('name')) {
+        const name = match[1].trim();
+        if (name && name !== '---' && name !== '-') {
+          employees.push({
+            name: name,
+            daysPresent: parseFloat(match[2])
+          });
+        }
+        return;
+      }
+
+      // Pattern 5: Simple format: NAME | DAYS
+      match = line.match(/^([A-Z\s\(\)]+)\s*\|\s*(\d+(?:\.\d+)?)\s*$/);
+      if (match) {
+        employees.push({
+          name: match[1].trim(),
+          daysPresent: parseFloat(match[2])
+        });
+        return;
+      }
+
+      // Pattern 6: Markdown table format with name and days
+      match = line.match(/\|\s*([^|]+)\s*\|\s*(\d+(?:\.\d+)?)\s*\|/);
+      if (match && match[1] && !match[1].includes('-') && !match[1].toLowerCase().includes('employee') && !match[1].toLowerCase().includes('name')) {
+        const name = match[1].trim();
+        if (name.length > 0) {
+          employees.push({
+            name: name,
+            daysPresent: parseFloat(match[2])
+          });
+        }
         return;
       }
     });
     
-    return employees;
+    // Remove duplicates
+    const uniqueEmployees = employees.filter((emp, index, self) => 
+      index === self.findIndex(e => e.name === emp.name)
+    );
+    
+    return uniqueEmployees;
   };
 
   // Enhanced summary extraction
@@ -64,12 +107,16 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ content }) => {
     let foundEmployeeList = false;
     
     for (const line of lines) {
-      // Stop when we hit the first employee entry
-      if (line.match(/\*\*.*\(.*\):\*\*/) || line.match(/\*\s*\*\*.*\(.*\):\*\*/)) {
+      // Stop when we hit employee data or tables
+      if (line.match(/\*\*.*\(.*\):\*\*/) || 
+          line.match(/\*\s*\*\*.*\(.*\):\*\*/) ||
+          line.match(/\|\s*[^|]+\s*\|\s*\d+/) ||
+          line.includes('Employee Name') ||
+          line.includes('Days Present')) {
         foundEmployeeList = true;
         break;
       }
-      if (line.trim() && !line.startsWith('*') && !line.includes('**')) {
+      if (line.trim() && !line.startsWith('*') && !line.includes('**') && !line.includes('|')) {
         summaryLines.push(line.trim());
       }
     }
@@ -77,33 +124,8 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ content }) => {
     return summaryLines.join(' ').trim();
   };
 
-  // Format content into structured sections
-  const formatContent = (text: string) => {
-    const sections = [];
-    const lines = text.split('\n');
-    let currentSection = [];
-    
-    for (const line of lines) {
-      if (line.trim() === '') {
-        if (currentSection.length > 0) {
-          sections.push(currentSection.join('\n'));
-          currentSection = [];
-        }
-      } else {
-        currentSection.push(line);
-      }
-    }
-    
-    if (currentSection.length > 0) {
-      sections.push(currentSection.join('\n'));
-    }
-    
-    return sections;
-  };
-
   const employees = parseEmployeeData(content);
   const summary = extractSummary(content);
-  const contentSections = formatContent(content);
   
   // Categorize employees by attendance
   const perfectAttendance = employees.filter(emp => emp.daysPresent >= 25);
@@ -141,7 +163,7 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ content }) => {
                 <User className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <p className="font-medium">{employee.name}</p>
-                  <p className="text-sm text-muted-foreground">{employee.id}</p>
+                  {employee.id && <p className="text-sm text-muted-foreground">{employee.id}</p>}
                 </div>
               </div>
               <Badge variant={getAttendanceBadgeVariant(employee.daysPresent)} className="flex items-center gap-1">
@@ -155,80 +177,78 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ content }) => {
     );
   };
 
-  const ContentSection = ({ content, index }: { content: string, index: number }) => {
-    // Check if this section contains employee data
-    const hasEmployeeData = content.match(/\*\*.*\(.*\):\*\*/);
-    
-    if (hasEmployeeData) {
-      // Parse and display employee data beautifully
-      const sectionEmployees = parseEmployeeData(content);
-      if (sectionEmployees.length > 0) {
-        return (
-          <Card key={index}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5 text-blue-500" />
-                Employee Data
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-3">
-                {sectionEmployees.map((employee, empIndex) => (
-                  <div key={empIndex} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">{employee.name}</p>
-                        <p className="text-sm text-muted-foreground">{employee.id}</p>
-                      </div>
+  // Enhanced table display for when we have employee data
+  const EmployeeTable = ({ employees }: { employees: EmployeeData[] }) => (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <User className="h-5 w-5 text-primary" />
+          Employee Attendance Overview
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Employee</TableHead>
+              <TableHead>Days Present</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {employees.map((employee, index) => (
+              <TableRow key={index}>
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">{employee.name}</p>
+                      {employee.id && <p className="text-sm text-muted-foreground">{employee.id}</p>}
                     </div>
-                    <Badge variant={getAttendanceBadgeVariant(employee.daysPresent)} className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {employee.daysPresent} days
-                    </Badge>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        );
-      }
-    }
-    
-    // Display other content sections beautifully
-    return (
-      <Card key={index}>
-        <CardContent className="p-6">
-          <div className="prose prose-sm max-w-none">
-            <div className="whitespace-pre-wrap leading-relaxed text-muted-foreground">
-              {content}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
+                </TableCell>
+                <TableCell>
+                  <Badge variant={getAttendanceBadgeVariant(employee.daysPresent)} className="flex items-center gap-1 w-fit">
+                    <Calendar className="h-3 w-3" />
+                    {employee.daysPresent}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    {getAttendanceIcon(employee.daysPresent)}
+                    <span className="text-sm">
+                      {employee.daysPresent >= 25 ? 'Excellent' :
+                       employee.daysPresent >= 15 ? 'Good' :
+                       employee.daysPresent > 0 ? 'Poor' : 'Absent'}
+                    </span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="space-y-6">
-      {/* Summary Section - Always display if we have content */}
-      {(summary || content) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              Analysis Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="prose prose-sm max-w-none">
-              <p className="text-muted-foreground leading-relaxed">
-                {summary || "Analysis completed successfully. See detailed results below."}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Summary Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-primary" />
+            Analysis Summary
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="prose prose-sm max-w-none">
+            <p className="text-muted-foreground leading-relaxed">
+              {summary || "Analysis completed successfully. Employee attendance data extracted and categorized below."}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Employee Statistics - Only show if we have employee data */}
       {employees.length > 0 && (
@@ -264,7 +284,10 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ content }) => {
         </div>
       )}
 
-      {/* Employee Details by Category - Only show if we have employee data */}
+      {/* Beautiful Employee Table */}
+      {employees.length > 0 && <EmployeeTable employees={employees} />}
+
+      {/* Employee Details by Category */}
       {employees.length > 0 && (
         <div className="space-y-4">
           <AttendanceSection 
@@ -290,17 +313,8 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ content }) => {
         </div>
       )}
 
-      {/* Content Sections - Always display content beautifully */}
-      {contentSections.length > 0 && employees.length === 0 && (
-        <div className="space-y-4">
-          {contentSections.map((section, index) => (
-            <ContentSection key={index} content={section} index={index} />
-          ))}
-        </div>
-      )}
-
-      {/* Fallback - if nothing else works, display raw content beautifully */}
-      {contentSections.length === 0 && employees.length === 0 && content && (
+      {/* Fallback for any other content */}
+      {employees.length === 0 && content && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
