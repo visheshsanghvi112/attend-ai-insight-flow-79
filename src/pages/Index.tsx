@@ -2,12 +2,15 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Users, UserCheck, UserX, Zap } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Calendar, Users, UserCheck, UserX, Zap, Upload, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [attendanceData, setAttendanceData] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
 
   const webhookUrl = "https://visheshsanghvi.app.n8n.cloud/webhook-test/efbd6621-7def-4bc0-b324-cc5fab654969";
@@ -39,6 +42,57 @@ const Index = () => {
     }
   };
 
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && (file.type === "application/pdf" || file.type === "application/msword" || file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document")) {
+      setSelectedFile(file);
+    } else {
+      toast({
+        title: "Invalid file type",
+        description: "Please select a PDF or Word document.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const uploadReport = async () => {
+    if (!selectedFile) return;
+
+    setIsUploading(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('timestamp', new Date().toISOString());
+      formData.append('source', 'attendance-analyzer');
+
+      await fetch(webhookUrl, {
+        method: "POST",
+        mode: "no-cors",
+        body: formData,
+      });
+
+      toast({
+        title: "Report uploaded successfully",
+        description: "Your attendance report is being processed. Results will appear below when ready.",
+      });
+      
+      setSelectedFile(null);
+      // Reset file input
+      const fileInput = document.getElementById('file-input') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+      
+    } catch (error) {
+      toast({
+        title: "Upload failed",
+        description: "Could not upload the report. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -65,6 +119,48 @@ const Index = () => {
             </Button>
           </div>
         </div>
+
+        {/* File Upload Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Upload className="h-5 w-5 mr-2" />
+              Upload Attendance Report
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center space-x-4">
+              <Input
+                id="file-input"
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={handleFileSelect}
+                className="flex-1"
+              />
+              <Button 
+                onClick={uploadReport} 
+                disabled={!selectedFile || isUploading}
+              >
+                {isUploading ? (
+                  "Uploading..."
+                ) : (
+                  <>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Upload
+                  </>
+                )}
+              </Button>
+            </div>
+            {selectedFile && (
+              <p className="text-sm text-muted-foreground">
+                Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Supported formats: PDF, DOC, DOCX
+            </p>
+          </CardContent>
+        </Card>
 
         {/* Attendance Data Display */}
         {attendanceData ? (
@@ -111,7 +207,7 @@ const Index = () => {
               <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
               <h3 className="text-lg font-medium mb-2">Waiting for attendance data</h3>
               <p className="text-muted-foreground">
-                Upload your fingerprint machine report to the n8n workflow to see attendance data here.
+                Upload your fingerprint machine report above to see attendance data here.
               </p>
             </CardContent>
           </Card>
@@ -124,7 +220,7 @@ const Index = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Send your processed attendance data to:</p>
+              <p className="text-sm text-muted-foreground">Connected to:</p>
               <code className="block p-3 bg-muted rounded text-sm break-all">
                 {webhookUrl}
               </code>
