@@ -217,7 +217,7 @@ const Index = () => {
             <h1 className="text-3xl font-bold">Code Analysis Tool</h1>
           </div>
           <p className="text-muted-foreground">
-            AI-powered code analysis from uploaded documents
+            Upload and analyze documents
           </p>
           
           <div className="flex items-center justify-center space-x-4">
