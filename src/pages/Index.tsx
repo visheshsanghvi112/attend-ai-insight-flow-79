@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,8 +19,8 @@ const Index = () => {
   const [analysisOutput, setAnalysisOutput] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Updated to production webhook URL
-  const webhookUrl = "https://visheshsanghvi.app.n8n.cloud/webhook/anayzed";
+  // Updated to new webhook URL
+  const webhookUrl = "https://vishesh786.app.n8n.cloud/webhook/anayzed";
   
   // This would be your response webhook URL that n8n calls back to
   const responseWebhookUrl = `${window.location.origin}/api/webhook/response`;
